@@ -144,15 +144,28 @@ sub run {
 
         # delay
         if (defined $Opts{delay}) {
-            Time::HiRes::sleep($Opts{delay});
+            if ($Opts{dry_run}) {
+                log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $Opts{delay};
+            } else {
+                log_debug "Sleeping for %.3f second(s)", $Opts{delay};
+                Time::HiRes::sleep($Opts{delay});
+            }
         } elsif (defined $Opts{delay_max}) {
             my $delay = $Opts{delay_min} + rand()*($Opts{delay_max} - $Opts{delay_min});
-            log_debug "Sleeping for %.3f second(s)", $delay;
-            Time::HiRes::sleep($delay);
+            if ($Opts{dry_run}) {
+                log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $delay;
+            } else {
+                log_debug "Sleeping for %.3f second(s)", $delay;
+                Time::HiRes::sleep($delay);
+            }
         } elsif (defined $Opts{delay_strategy}) {
             my $delay = $Opts{delay_strategy}->failure;
-            log_debug "Sleeping for %.3f second(s)", $delay;
-            Time::HiRes::sleep($delay);
+            if ($Opts{dry_run}) {
+                log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $delay;
+            } else {
+                log_debug "Sleeping for %.3f second(s)", $delay;
+                Time::HiRes::sleep($delay);
+            }
         }
     } # while (1)
 
