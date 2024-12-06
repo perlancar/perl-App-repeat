@@ -1,0 +1,237 @@
+#!perl
+
+use 5.010001;
+use strict;
+use warnings;
+use Log::ger;
+
+use Getopt::Long::Less;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
+our %Opts = (
+    n => undef,
+    until => undef,
+    max => undef,
+
+    delay => 0,
+    delay_max => undef,
+    delay_strategy => undef,
+
+    bail => 0,
+);
+
+my $Exit_Code = 0;
+
+sub parse_cmdline {
+    my $res = GetOptions(
+        'n=i'              => \$Opts{n},
+        'until=s'          => sub {
+            require DateTime::Format::Natural;
+            my $dt = DateTime::Format::Natural->new->parse_datetime($_[1]);
+            $dt->epoch;
+        },
+        'max=n'            => \$Opts{max},
+
+        'delay|d=f'        => \$Opts{delay},
+        'delay-min=f'      => \$Opts{delay_min},
+        'delay-max=f'      => \$Opts{delay_max},
+        'delay-strategy=s' => \$Opts{delay_strategy},
+
+        'bail!'            => \$Opts{bail},
+        'help|h|?'         => sub {
+            print <<USAGE;
+Usage:
+  repeat [repeat options] -- [command] [command options ...]
+  repeat --help, -h, -?
+Options:
+  -n=i
+  --until=s
+  --max=i
+  --delay=f
+  --delay-strategy=s
+  --(no-)bail
+For more details, see the manpage/documentation.
+USAGE
+            exit 0;
+        },
+    );
+    exit 99 if !$res;
+    unless ((defined $Opts{n}) xor (defined $Opts{until})) {
+        warn "repeat: Please specify -n or --until\n";
+        exit 99;
+    }
+    if (defined $Opts{delay_min} && !defined $Opts{delay_max}) {
+        warn "repeat: --delay-max must be specified\n";
+        exit 99;
+    }
+    $Opts{delay_min} //= 0;
+    unless (@ARGV) {
+        warn "repeat: No command specified\n";
+        exit 99;
+    }
+}
+
+sub run_cmd {
+    if (log_is_debug()) { log_debug "Executing command: %s", join(" ", @ARGV) }
+    system @ARGV;
+    $Exit_Code = $? >> 8;
+    log_debug "exit code is $Exit_Code";
+}
+
+sub run {
+    require Time::HiRes;
+
+    my $i = 0;
+    my $now;
+    while (1) {
+        $i++;
+
+        # check whether we should exit
+        $now = Time::HiRes::time();
+        if (defined $Opts{n} && $i > $Opts{n}) {
+            log_debug "Number of times (%d) exceeded", $Opts{n};
+            goto EXIT;
+        }
+        if (defined $Opts{max} && $i > $Opts{max}) {
+            log_debug "Maximum number of times (%d) exceeded", $Opts{max};
+            goto EXIT;
+        }
+        if (defined $Opts{until} && $now > $Opts{until}) {
+            log_debug "--until time (%f) exceeded", $Opts{until};
+            goto EXIT;
+        }
+
+        run_cmd();
+
+        if ($Opts{bail} && $Exit_Code) {
+            log_debug "exit code is non-zero, bailing ...";
+            goto EXIT;
+        }
+
+        # delay
+        if (defined $Opts{delay}) {
+            Time::HiRes::sleep($Opts{delay});
+        } elsif (defined $Opts{delay_max}) {
+            my $delay = $Opts{delay_min} + rand()*($Opts{delay_max} - $Opts{delay_min});
+            Time::HiRes::sleep($delay);
+        }
+    } # while (1)
+
+  EXIT:
+    log_debug "Exiting with exit code $Exit_Code ...";
+    exit $Exit_Code;
+}
+
+# MAIN
+
+parse_cmdline();
+
+run();
+exit $Exit_Code;
+
+1;
+# ABSTRACT: Repeat a command a number of times
+# PODNAME:
+
+=head1 SYNOPSIS
+
+Usage:
+
+ % repeat [REPEAT OPTIONS] -- [PROGRAM] [PROGRAM OPTIONS ...]
+
+Below are some examples.
+
+This will run C<somecmd> 10 times:
+
+ % repeat -n10 -- somecmd --cmdopt
+
+This will run C<somecmd> 10 times with a delay of 2 seconds in between:
+
+ % repeat -n10 -d2 -- somecmd --cmdopt
+
+This will repeatedly run C<somecmd> until tomorrow at 10am with a delay of
+between 2 and 10 seconds in between (keywords: jitter):
+
+ % repeat --until 'tomorrow 10AM' --delay-min=2 --delay-max=10 -- somecmd --cmdopt
+
+(NOT YET IMPLEMENTED) This will run C<somecmd> 10 times with exponentially
+increasing delay from 1, 2, 4, and so on:
+
+ % repeat -n10 --delay-strategy=Exponential=initial_delay,1 -- somecmd --cmdopt
+
+
+=head1 DESCRIPTION
+
+C<repeat> is a CLI utility that lets you repeat running a command a number of
+times. In its most basic usage, it simplifies this shell construct:
+
+ % for i in `seq 1 10`; do somecmd --cmdopt; done
+
+into:
+
+ % repeat -n10 -- somecmd --cmdopt
+
+You can either specify a fixed number of times to repeat (C<-n>) or until a
+certain point of time (C<--until>) with an optional maximum number of repetition
+(C<--max>).
+
+Delay between command can be specified as a fixed number of seconds (C<--delay>)
+or a random range of seconds (C<--delay-min>, C<--delay-max>) or (NOT YET
+IMPLEMENTED) using a backoff strategy (see L<Algorithm::Backoff>).
+
+You can opt to bail immediately after a failure (C<--bail>).
+
+
+=head1 OPTIONS
+
+=over
+
+=item * -n
+
+Uint. Number of times to run the command. Alternatively, you can use C<--until>
+(with optional C<--max>) instead.
+
+=item * --until
+
+String representation of time. Will be parsed using
+L<DateTime::Format::Natural>. Alternatively, you can use C<-n> instead.
+
+=item * --max
+
+Uint. When C<--until> is specified, specify maximum number of repetition.
+
+=item * --delay
+
+Float. Number of seconds to delay between running a command. Alternatively, you
+can specify C<--delay-min> and C<--delay-max>, or (NOT YET IMPLEMENTED)
+C<--delay-strategy>.
+
+=item * --delay-min
+
+Float.
+
+=item * --delay-max
+
+Float.
+
+=item * --delay-strategy
+
+Str. NOT YET IMPLEMENTED.
+
+=item * --bail
+
+=back
+
+
+=head1 ENVIRONMENT
+
+
+=head1 SEE ALSO
+
+L<norepeat> from L<App::norepeat>.
+
+=cut
