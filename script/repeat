@@ -22,6 +22,7 @@ our %Opts = (
     delay_strategy => undef,
 
     bail => 0,
+    dry_run => 0,
 );
 
 my $Exit_Code = 0;
@@ -56,6 +57,7 @@ sub parse_cmdline {
         },
 
         'bail!'            => \$Opts{bail},
+        'dry-run!'         => \$Opts{dry_run},
         'help|h|?'         => sub {
             print <<USAGE;
 Usage:
@@ -68,6 +70,7 @@ Options:
   --delay=f, -d
   --delay-strategy=s
   --(no-)bail
+  --(no-)dry-run
 For more details, see the manpage/documentation.
 USAGE
             exit 0;
@@ -90,10 +93,20 @@ USAGE
 }
 
 sub run_cmd {
-    if (log_is_debug()) { log_debug "Executing command: %s", join(" ", @ARGV) }
-    system @ARGV;
-    $Exit_Code = $? >> 8;
-    log_debug "exit code is $Exit_Code";
+    my ($is_dry_run, $i, $max) = @_;
+
+    if (log_is_debug()) {
+        log_debug "\%s[repeat: %d%s] Executing command: %s",
+            ($is_dry_run ? "[DRY_RUN]" : ""),
+            $i,
+            (defined($max) ? "/$max" : ""),
+            join(" ", @ARGV);
+    }
+    unless ($is_dry_run) {
+        system @ARGV;
+        $Exit_Code = $? >> 8;
+        log_debug "exit code is $Exit_Code";
+    }
 }
 
 sub run {
@@ -122,7 +135,7 @@ sub run {
             }
         }
 
-        run_cmd();
+        run_cmd($Opts{dry_run}, $i, $Opts{n} // $Opts{max});
 
         if ($Opts{bail} && $Exit_Code) {
             log_debug "exit code is non-zero, bailing ...";
