@@ -271,6 +271,10 @@ C<--until-time> (with optional C<--max>) instead.
 String representation of time. Will be parsed using
 L<DateTime::Format::Natural>. Alternatively, you can use C<-n> instead.
 
+Note that dependency to L<DateTime::Format::Natural> is declared optionally
+(RuntimeSuggests). You need to install the module first if you want to use
+C<--until-time>.
+
 =item * --max
 
 Uint. When C<--until-time> is specified, specify maximum number of repetition.
