@@ -17,7 +17,7 @@ our %Opts = (
     until => undef,
     max => undef,
 
-    delay => 0,
+    delay => undef,
     delay_max => undef,
     delay_strategy => undef,
 
@@ -32,9 +32,12 @@ sub parse_cmdline {
         'until=s'          => sub {
             require DateTime::Format::Natural;
             my $dt = DateTime::Format::Natural->new->parse_datetime($_[1]);
-            $dt->epoch;
+            warn "TZ is not set!" unless $ENV{TZ};
+            $dt->set_time_zone($ENV{TZ});
+            log_debug "--until is set to %s (%.3f)", "$dt", $dt->epoch;
+            $Opts{until} = $dt->epoch;
         },
-        'max=n'            => \$Opts{max},
+        'max=i'            => \$Opts{max},
 
         'delay|d=f'        => \$Opts{delay},
         'delay-min=f'      => \$Opts{delay_min},
@@ -100,9 +103,12 @@ sub run {
             log_debug "Maximum number of times (%d) exceeded", $Opts{max};
             goto EXIT;
         }
-        if (defined $Opts{until} && $now > $Opts{until}) {
-            log_debug "--until time (%f) exceeded", $Opts{until};
-            goto EXIT;
+        if (defined $Opts{until}) {
+            log_debug "Comparing current time ($now) with --until ($Opts{until})";
+            if ($now > $Opts{until}) {
+                log_debug "--until time (%f) exceeded", $Opts{until};
+                goto EXIT;
+            }
         }
 
         run_cmd();
@@ -117,6 +123,7 @@ sub run {
             Time::HiRes::sleep($Opts{delay});
         } elsif (defined $Opts{delay_max}) {
             my $delay = $Opts{delay_min} + rand()*($Opts{delay_max} - $Opts{delay_min});
+            log_debug "Sleeping for %.3f second(s)", $delay;
             Time::HiRes::sleep($delay);
         }
     } # while (1)
