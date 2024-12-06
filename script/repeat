@@ -214,6 +214,11 @@ This will run C<somecmd> 10 times with exponentially increasing delay from 1, 2,
 
  % repeat -n10 --delay-strategy=Exponential=initial_delay,1 -- somecmd --cmdopt
 
+Dry-run mode and show debugging messages: do not actually run the command, just
+show it in the log (require L<Log::ger::Screen>).
+
+ % TRACE=1 PERL5OPT=-MLog::ger::Screen repeat -n10 --dry-run -- foo
+
 
 =head1 DESCRIPTION
 
