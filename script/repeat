@@ -23,6 +23,7 @@ our %Opts = (
 
     bail => 0,
     dry_run => 0,
+    dry_run_delay => 0,
 );
 
 my $Exit_Code = 0;
@@ -58,6 +59,7 @@ sub parse_cmdline {
 
         'bail!'            => \$Opts{bail},
         'dry-run!'         => \$Opts{dry_run},
+        'dry-run-delay'    => \$Opts{dry_run_delay},
         'help|h|?'         => sub {
             print <<USAGE;
 Usage:
@@ -71,6 +73,7 @@ Options:
   --delay-strategy=s
   --(no-)bail
   --(no-)dry-run
+  --dry-run-sleep
 For more details, see the manpage/documentation.
 USAGE
             exit 0;
@@ -144,7 +147,7 @@ sub run {
 
         # delay
         if (defined $Opts{delay}) {
-            if ($Opts{dry_run}) {
+            if ($Opts{dry_run} && $Opts{dry_run_delay}) {
                 log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $Opts{delay};
             } else {
                 log_debug "Sleeping for %.3f second(s)", $Opts{delay};
@@ -152,7 +155,7 @@ sub run {
             }
         } elsif (defined $Opts{delay_max}) {
             my $delay = $Opts{delay_min} + rand()*($Opts{delay_max} - $Opts{delay_min});
-            if ($Opts{dry_run}) {
+            if ($Opts{dry_run} && $Opts{dry_run_delay}) {
                 log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $delay;
             } else {
                 log_debug "Sleeping for %.3f second(s)", $delay;
@@ -160,7 +163,7 @@ sub run {
             }
         } elsif (defined $Opts{delay_strategy}) {
             my $delay = $Opts{delay_strategy}->failure;
-            if ($Opts{dry_run}) {
+            if ($Opts{dry_run} && $Opts{dry_run_delay}) {
                 log_debug "[DRY_RUN] Sleeping for %.3f second(s)", $delay;
             } else {
                 log_debug "Sleeping for %.3f second(s)", $delay;
@@ -281,6 +284,15 @@ Also note that the dependency is not specified explicitly; you have to install
 it yourself.
 
 =item * --bail
+
+=item * --dry-run
+
+Dry-run mode. Don't actually run the command, just show it in the log. But
+delays will be performed; use C<--dry-run-delay> to skip delaying also.
+
+=item * --dry-run-delay
+
+Dry-run mode for delay. Don't actually delay, just show it in the log.
 
 =back
 
