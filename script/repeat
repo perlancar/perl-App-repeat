@@ -14,14 +14,15 @@ use Getopt::Long::Less;
 
 our %Opts = (
     n => undef,
-    until => undef,
+    until_time => undef,
     max => undef,
 
     delay => undef,
     delay_max => undef,
     delay_strategy => undef,
 
-    bail => 0,
+    until_fail => 0,
+    until_success => 0,
     dry_run => 0,
     dry_run_delay => 0,
 );
@@ -31,13 +32,13 @@ my $Exit_Code = 0;
 sub parse_cmdline {
     my $res = GetOptions(
         'n=i'              => \$Opts{n},
-        'until=s'          => sub {
+        'until-time=s'     => sub {
             require DateTime::Format::Natural;
             my $dt = DateTime::Format::Natural->new->parse_datetime($_[1]);
             warn "TZ is not set!" unless $ENV{TZ};
             $dt->set_time_zone($ENV{TZ});
-            log_debug "--until is set to %s (%.3f)", "$dt", $dt->epoch;
-            $Opts{until} = $dt->epoch;
+            log_debug "--until-time is set to %s (%.3f)", "$dt", $dt->epoch;
+            $Opts{until_time} = $dt->epoch;
         },
         'max=i'            => \$Opts{max},
 
@@ -57,7 +58,9 @@ sub parse_cmdline {
             $Opts{delay_strategy} = $s;
         },
 
-        'bail!'            => \$Opts{bail},
+        'until-fail'       => \$Opts{until_fail},
+        'until-success'    => \$Opts{until_success},
+
         'dry-run!'         => \$Opts{dry_run},
         'dry-run-delay'    => \$Opts{dry_run_delay},
         'help|h|?'         => sub {
@@ -67,11 +70,12 @@ Usage:
   repeat --help, -h, -?
 Options:
   -n=i
-  --until=s
+  --until-time=s
   --max=i
+  --until-fail
+  --until-success
   --delay=f, -d
   --delay-strategy=s
-  --(no-)bail
   --(no-)dry-run
   --dry-run-sleep
 For more details, see the manpage/documentation.
@@ -80,12 +84,16 @@ USAGE
         },
     );
     exit 99 if !$res;
-    unless ((defined $Opts{n}) xor (defined $Opts{until})) {
-        warn "repeat: Please specify -n or --until\n";
+    unless ((defined $Opts{n}) xor (defined $Opts{until_time})) {
+        warn "repeat: Please specify -n or --until-time\n";
         exit 99;
     }
     if (defined $Opts{delay_min} && !defined $Opts{delay_max}) {
         warn "repeat: --delay-max must be specified\n";
+        exit 99;
+    }
+    if ($Opts{until_fail} && $Opts{until_success}) {
+        warn "repeat: --until-fail and --until-success cannot be specified at the same time\n";
         exit 99;
     }
     $Opts{delay_min} //= 0;
@@ -130,18 +138,22 @@ sub run {
             log_debug "Maximum number of times (%d) exceeded", $Opts{max};
             goto EXIT;
         }
-        if (defined $Opts{until}) {
-            log_debug "Comparing current time ($now) with --until ($Opts{until})";
-            if ($now > $Opts{until}) {
-                log_debug "--until time (%f) exceeded", $Opts{until};
+        if (defined $Opts{until_time}) {
+            log_debug "Comparing current time ($now) with --until-time ($Opts{until_time})";
+            if ($now > $Opts{until_time}) {
+                log_debug "--until time (%f) exceeded", $Opts{until_time};
                 goto EXIT;
             }
         }
 
         run_cmd($Opts{dry_run}, $i, $Opts{n} // $Opts{max});
 
-        if ($Opts{bail} && $Exit_Code) {
-            log_debug "exit code is non-zero, bailing ...";
+        if ($Opts{until_fail} && $Exit_Code) {
+            log_debug "exit code is non-zero, bailing because of --until-fail ...";
+            goto EXIT;
+        }
+        if ($Opts{until_success} && !$Exit_Code) {
+            log_debug "exit code is zero, bailing because of --until-success ...";
             goto EXIT;
         }
 
@@ -207,7 +219,7 @@ This will run C<somecmd> 10 times with a delay of 2 seconds in between:
 This will repeatedly run C<somecmd> until tomorrow at 10am with a delay of
 between 2 and 10 seconds in between (keywords: jitter):
 
- % repeat --until 'tomorrow 10AM' --delay-min=2 --delay-max=10 -- somecmd --cmdopt
+ % repeat --until-time 'tomorrow at 10AM' --delay-min=2 --delay-max=10 -- somecmd --cmdopt
 
 This will run C<somecmd> 10 times with exponentially increasing delay from 1, 2,
 4, and so on:
@@ -232,14 +244,15 @@ into:
  % repeat -n10 -- somecmd --cmdopt
 
 You can either specify a fixed number of times to repeat (C<-n>) or until a
-certain point of time (C<--until>) with an optional maximum number of repetition
-(C<--max>).
+certain point of time (C<--until-time>) with an optional maximum number of
+repetition (C<--max>).
 
 Delay between command can be specified as a fixed number of seconds (C<--delay>)
 or a random range of seconds (C<--delay-min>, C<--delay-max>) or using a backoff
 strategy (see L<Algorithm::Backoff>).
 
-You can opt to bail immediately after a failure (C<--bail>).
+You can opt to bail immediately after a failure (C<--until-fail>) or after a
+success (C<--until-success>).
 
 
 =head1 OPTIONS
@@ -250,17 +263,17 @@ You can opt to bail immediately after a failure (C<--bail>).
 
 =item * -n
 
-Uint. Number of times to run the command. Alternatively, you can use C<--until>
-(with optional C<--max>) instead.
+Uint. Number of times to run the command. Alternatively, you can use
+C<--until-time> (with optional C<--max>) instead.
 
-=item * --until
+=item * --until-time
 
 String representation of time. Will be parsed using
 L<DateTime::Format::Natural>. Alternatively, you can use C<-n> instead.
 
 =item * --max
 
-Uint. When C<--until> is specified, specify maximum number of repetition.
+Uint. When C<--until-time> is specified, specify maximum number of repetition.
 
 =item * --delay, -d
 
@@ -288,7 +301,10 @@ Note that the failure delay values are used as the delays.
 Also note that the dependency is not specified explicitly; you have to install
 it yourself.
 
-=item * --bail
+=item * --until-fail
+
+Bool. Stop repeating as soon as exit code of command is non-zero (failure).
+Alternatively, you can specify C<--until-success> instead.
 
 =item * --dry-run
 
