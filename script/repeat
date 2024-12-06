@@ -42,7 +42,18 @@ sub parse_cmdline {
         'delay|d=f'        => \$Opts{delay},
         'delay-min=f'      => \$Opts{delay_min},
         'delay-max=f'      => \$Opts{delay_max},
-        'delay-strategy=s' => \$Opts{delay_strategy},
+        'delay-strategy=s' => sub {
+            no strict 'refs';  ## no critic: TestingAndDebugging::ProhibitNoStrict
+            my $s = $_[1];
+            my ($mod, $args) = $s =~ /\A(\w+(?:\::\w+)*)(?:[=,](.*))?/;
+            $args //= ''; $args = { split /,/, $args };
+            $mod = "Algorithm::Backoff::$mod";
+            (my $modpm = "$mod.pm") =~ s!::!/!g;
+            require $modpm;
+            $s = $mod->new(%$args);
+
+            $Opts{delay_strategy} = $s;
+        },
 
         'bail!'            => \$Opts{bail},
         'help|h|?'         => sub {
@@ -125,6 +136,10 @@ sub run {
             my $delay = $Opts{delay_min} + rand()*($Opts{delay_max} - $Opts{delay_min});
             log_debug "Sleeping for %.3f second(s)", $delay;
             Time::HiRes::sleep($delay);
+        } elsif (defined $Opts{delay_strategy}) {
+            my $delay = $Opts{delay_strategy}->failure;
+            log_debug "Sleeping for %.3f second(s)", $delay;
+            Time::HiRes::sleep($delay);
         }
     } # while (1)
 
@@ -165,8 +180,8 @@ between 2 and 10 seconds in between (keywords: jitter):
 
  % repeat --until 'tomorrow 10AM' --delay-min=2 --delay-max=10 -- somecmd --cmdopt
 
-(NOT YET IMPLEMENTED) This will run C<somecmd> 10 times with exponentially
-increasing delay from 1, 2, 4, and so on:
+This will run C<somecmd> 10 times with exponentially increasing delay from 1, 2,
+4, and so on:
 
  % repeat -n10 --delay-strategy=Exponential=initial_delay,1 -- somecmd --cmdopt
 
@@ -187,8 +202,8 @@ certain point of time (C<--until>) with an optional maximum number of repetition
 (C<--max>).
 
 Delay between command can be specified as a fixed number of seconds (C<--delay>)
-or a random range of seconds (C<--delay-min>, C<--delay-max>) or (NOT YET
-IMPLEMENTED) using a backoff strategy (see L<Algorithm::Backoff>).
+or a random range of seconds (C<--delay-min>, C<--delay-max>) or using a backoff
+strategy (see L<Algorithm::Backoff>).
 
 You can opt to bail immediately after a failure (C<--bail>).
 
@@ -216,8 +231,7 @@ Uint. When C<--until> is specified, specify maximum number of repetition.
 =item * --delay, -d
 
 Float. Number of seconds to delay between running a command. Alternatively, you
-can specify C<--delay-min> and C<--delay-max>, or (NOT YET IMPLEMENTED)
-C<--delay-strategy>.
+can specify C<--delay-min> and C<--delay-max>, or C<--delay-strategy>.
 
 =item * --delay-min
 
@@ -229,7 +243,16 @@ Float.
 
 =item * --delay-strategy
 
-Str. NOT YET IMPLEMENTED.
+Str. Pick a backoff strategy from L<Algorithm::Backoff>. It should be a module
+name under C<Algorithm::Backoff::> namespace, without the prefix, optionally
+followed by C<,> (or C<=>) and a comma-separated list of arguments. For example:
+
+ Exponential=initial_delay,1
+
+Note that the failure delay values are used as the delays.
+
+Also note that the dependency is not specified explicitly; you have to install
+it yourself.
 
 =item * --bail
 
