@@ -247,7 +247,7 @@ Str. Pick a backoff strategy from L<Algorithm::Backoff>. It should be a module
 name under C<Algorithm::Backoff::> namespace, without the prefix, optionally
 followed by C<,> (or C<=>) and a comma-separated list of arguments. For example:
 
- Exponential=initial_delay,1
+ Exponential=initial_delay,1,max_delay,10
 
 Note that the failure delay values are used as the delays.
 
@@ -265,5 +265,7 @@ it yourself.
 =head1 SEE ALSO
 
 L<norepeat> from L<App::norepeat>.
+
+L<retry> from L<App::AlgorithmBackoffUtils>.
 
 =cut
