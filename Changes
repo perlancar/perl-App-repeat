@@ -1,3 +1,11 @@
+0.003   2024-12-06  Released-By: PERLANCAR; Urgency: medium; Backward-Incompatible: yes
+
+        - [incompatible change] --dry-run now actually perform delays. To skip
+          delaying, use --dry-run-delay.
+
+        - Add --dry-run-delay.
+
+
 0.002   2024-12-06  Released-By: PERLANCAR; Urgency: medium
 
         - Implement --delay-strategy.
