@@ -1,3 +1,12 @@
+0.002   2024-12-06  Released-By: PERLANCAR; Urgency: medium
+
+        - Implement --delay-strategy.
+
+        - Add dry-run mode (--dry-run).
+
+        - [doc] Mention App::AlgorithmBackoffUtils.
+
+
 0.001   2024-12-06  Released-By: PERLANCAR
 
         - First release, no tests yet.
