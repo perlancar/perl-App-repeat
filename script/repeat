@@ -54,7 +54,7 @@ Options:
   -n=i
   --until=s
   --max=i
-  --delay=f
+  --delay=f, -d
   --delay-strategy=s
   --(no-)bail
 For more details, see the manpage/documentation.
@@ -197,6 +197,8 @@ You can opt to bail immediately after a failure (C<--bail>).
 
 =over
 
+=item * --help, -h, -?
+
 =item * -n
 
 Uint. Number of times to run the command. Alternatively, you can use C<--until>
@@ -211,7 +213,7 @@ L<DateTime::Format::Natural>. Alternatively, you can use C<-n> instead.
 
 Uint. When C<--until> is specified, specify maximum number of repetition.
 
-=item * --delay
+=item * --delay, -d
 
 Float. Number of seconds to delay between running a command. Alternatively, you
 can specify C<--delay-min> and C<--delay-max>, or (NOT YET IMPLEMENTED)
